@@ -18,32 +18,70 @@ db.init_app(app)
 def home():
     return '<h1>Bakery GET-POST-PATCH-DELETE API</h1>'
 
-@app.route('/bakeries')
+@app.route('/bakeries', methods=['GET'])
 def bakeries():
     bakeries = [bakery.to_dict() for bakery in Bakery.query.all()]
     return make_response(  bakeries,   200  )
 
-@app.route('/bakeries/<int:id>')
+@app.route('/bakeries/<int:id>', methods=['GET', 'PATCH'])
 def bakery_by_id(id):
-
     bakery = Bakery.query.filter_by(id=id).first()
-    bakery_serialized = bakery.to_dict()
-    return make_response ( bakery_serialized, 200  )
 
-@app.route('/baked_goods/by_price')
+    if not bakery:
+        return make_response({"error": "Bakery not found"}, 404)
+
+    if request.method == 'PATCH':
+        name = request.form.get('name')
+        if name:
+            bakery.name = name
+            db.session.commit()
+
+    bakery_serialized = bakery.to_dict()
+    return make_response(bakery_serialized, 200)
+
+@app.route('/baked_goods/by_price', methods=['GET'])
 def baked_goods_by_price():
-    baked_goods_by_price = BakedGood.query.order_by(BakedGood.price.desc()).all()
-    baked_goods_by_price_serialized = [
-        bg.to_dict() for bg in baked_goods_by_price
-    ]
-    return make_response( baked_goods_by_price_serialized, 200  )
+    baked_goods = BakedGood.query.order_by(BakedGood.price.desc()).all()
+    baked_goods_serialized = [bg.to_dict() for bg in baked_goods]
+    return make_response(baked_goods_serialized, 200)
    
 
-@app.route('/baked_goods/most_expensive')
+@app.route('/baked_goods/most_expensive', methods=['GET'])
 def most_expensive_baked_good():
-    most_expensive = BakedGood.query.order_by(BakedGood.price.desc()).limit(1).first()
-    most_expensive_serialized = most_expensive.to_dict()
-    return make_response( most_expensive_serialized,   200  )
+    most_expensive = BakedGood.query.order_by(BakedGood.price.desc()).first()
+    return make_response(most_expensive.to_dict(), 200)
+
+@app.route('/baked_goods', methods=['POST'])
+def create_baked_good():
+    name = request.form.get('name')
+    price = request.form.get('price')
+    bakery_id = request.form.get('bakery_id')
+
+    if not (name and price and bakery_id):
+        return make_response({"error": "Missing fields"}, 400)
+
+    baked_good = BakedGood(
+        name=name,
+        price=float(price),
+        bakery_id=int(bakery_id)
+    )
+
+    db.session.add(baked_good)
+    db.session.commit()
+
+    return make_response(baked_good.to_dict(), 201)
+
+@app.route('/baked_goods/<int:id>', methods=['DELETE'])
+def delete_baked_good(id):
+    baked_good = BakedGood.query.filter_by(id=id).first()
+
+    if not baked_good:
+        return make_response({"error": "Baked good not found"}, 404)
+
+    db.session.delete(baked_good)
+    db.session.commit()
+
+    return make_response({"message": "Baked good successfully deleted"}, 200)
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
